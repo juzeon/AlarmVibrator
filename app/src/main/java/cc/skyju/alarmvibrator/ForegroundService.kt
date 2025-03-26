@@ -32,6 +32,8 @@ class ForegroundService : Service() {
         }
     }
     
+    private lateinit var screenStateReceiver: ScreenStateReceiver
+    
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
@@ -40,11 +42,21 @@ class ForegroundService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
+        
+        // 初始化并注册屏幕状态接收器
+        screenStateReceiver = ScreenStateReceiver(this)
+        screenStateReceiver.register()
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 如果服务被系统杀死，则在资源可用时重新启动
         return START_STICKY
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // 注销屏幕状态接收器
+        screenStateReceiver.unregister()
     }
     
     private fun createNotificationChannel() {

@@ -30,7 +30,7 @@ class VibrationManager(private val context: Context) {
 
     @RequiresApi(Build.VERSION_CODES.Q)
     fun vibrateStrong() {
-        val effect = VibrationEffect.createOneShot(250, 255)
+        val effect = VibrationEffect.createOneShot(500, 255)
         vibrator.vibrate(effect)
     }
 
@@ -47,5 +47,16 @@ class VibrationManager(private val context: Context) {
     fun vibrateLight() {
         val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
         vibrator.vibrate(effect)
+    }
+    
+    // 添加自定义振动方法
+    fun vibrateCustom(duration: Long) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(effect)
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(duration)
+        }
     }
 } 
