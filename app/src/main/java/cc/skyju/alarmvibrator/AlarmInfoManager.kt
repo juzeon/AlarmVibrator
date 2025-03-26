@@ -2,7 +2,9 @@ package cc.skyju.alarmvibrator
 
 import android.app.AlarmManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -11,6 +13,31 @@ import java.util.Locale
  * 管理闹铃信息的工具类
  */
 class AlarmInfoManager(private val context: Context) {
+
+    /**
+     * 检查是否有闹铃权限
+     * @return 是否有权限
+     */
+    fun hasAlarmPermission(): Boolean {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true // Android 12以下不需要特殊检查
+        }
+    }
+
+    /**
+     * 获取打开闹铃权限设置的Intent
+     * @return 打开设置的Intent
+     */
+    fun getAlarmPermissionSettingsIntent(): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+        } else {
+            Intent(Settings.ACTION_SETTINGS)
+        }
+    }
 
     /**
      * 获取下一个闹铃的时间

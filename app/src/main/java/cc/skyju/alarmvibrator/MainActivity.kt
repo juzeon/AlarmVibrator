@@ -59,6 +59,9 @@ class MainActivity : ComponentActivity() {
         // 检查并请求通知权限
         checkNotificationPermission()
         
+        // 检查闹铃权限
+        checkAlarmPermission()
+        
         setContent {
             AlarmVibratorTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -97,6 +100,15 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    private fun checkAlarmPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!alarmInfoManager.hasAlarmPermission()) {
+                // 可以在这里显示一个对话框解释为什么需要权限
+                // 然后引导用户到设置页面
+            }
+        }
+    }
+    
     private fun startForegroundService() {
         ForegroundService.startService(this)
     }
@@ -117,6 +129,7 @@ fun AlarmInfoScreen(
 ) {
     val context = LocalContext.current
     var alarmInfo by remember { mutableStateOf(initialAlarmInfo) }
+    val alarmInfoManager = remember { AlarmInfoManager(context) }
     
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp),
@@ -132,12 +145,25 @@ fun AlarmInfoScreen(
         // 刷新闹铃信息的按钮
         Button(
             onClick = {
-                val alarmInfoManager = AlarmInfoManager(context)
                 alarmInfo = alarmInfoManager.getNextAlarmTime()
             },
             modifier = Modifier.fillMaxWidth(0.8f)
         ) {
             Text("刷新闹铃信息")
+        }
+        
+        // 如果需要闹铃权限，显示请求权限按钮
+        if (alarmInfo == "需要闹铃权限" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    val intent = alarmInfoManager.getAlarmPermissionSettingsIntent()
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text("请求闹铃权限")
+            }
         }
         
         Spacer(modifier = Modifier.height(32.dp))

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import android.content.pm.ServiceInfo
 
 class ForegroundService : Service() {
     
@@ -41,7 +42,16 @@ class ForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
+        
+        // 使用适当的前台服务类型启动前台服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14 (API 34)
+            // 使用闹钟类型，因为应用已经有SCHEDULE_EXACT_ALARM权限
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // Android 10 (API 29)
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE)
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
         
         // 初始化并注册屏幕状态接收器
         screenStateReceiver = ScreenStateReceiver(this)
