@@ -1,9 +1,14 @@
 package cc.skyju.alarmvibrator
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,12 +30,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import cc.skyju.alarmvibrator.ui.theme.AlarmVibratorTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var alarmInfoManager: AlarmInfoManager
     private lateinit var vibrationManager: VibrationManager
     
+    // 请求通知权限的启动器
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            // 权限获取成功，启动前台服务
+            startForegroundService()
+        }
+    }
+    
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -38,6 +55,9 @@ class MainActivity : ComponentActivity() {
         // 初始化管理器
         alarmInfoManager = AlarmInfoManager(this)
         vibrationManager = VibrationManager(this)
+        
+        // 检查并请求通知权限
+        checkNotificationPermission()
         
         setContent {
             AlarmVibratorTheme {
@@ -51,8 +71,44 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    // 已有权限，启动前台服务
+                    startForegroundService()
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    // 可以在这里显示为什么需要权限的解释
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    // 直接请求权限
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        } else {
+            // Android 13以下不需要单独请求通知权限
+            startForegroundService()
+        }
+    }
+    
+    private fun startForegroundService() {
+        ForegroundService.startService(this)
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // 不要在这里停止服务，因为我们希望服务在应用关闭后继续运行
+        // ForegroundService.stopService(this)
+    }
 }
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun AlarmInfoScreen(
     modifier: Modifier = Modifier,
@@ -135,6 +191,7 @@ fun AlarmInfoScreen(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Preview(showBackground = true)
 @Composable
 fun AlarmInfoScreenPreview() {
