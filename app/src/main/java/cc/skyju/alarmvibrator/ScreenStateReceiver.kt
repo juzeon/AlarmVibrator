@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -54,6 +55,9 @@ class ScreenStateReceiver(private val context: Context) {
     // 闹钟信息管理器
     private val alarmInfoManager = AlarmInfoManager(context)
     
+    // 唤醒锁
+    private var wakeLock: PowerManager.WakeLock? = null
+    
     // 注册广播接收器
     fun register() {
         val filter = IntentFilter().apply {
@@ -74,6 +78,7 @@ class ScreenStateReceiver(private val context: Context) {
             Log.e(TAG, "注销接收器失败: ${e.message}")
         }
         handler.removeCallbacks(resetRunnable)
+        releaseWakeLock()
     }
     
     // 处理屏幕点亮事件
@@ -136,15 +141,44 @@ class ScreenStateReceiver(private val context: Context) {
         Log.d(TAG, "计数器已重置")
     }
     
+    // 获取唤醒锁
+    private fun acquireWakeLock() {
+        releaseWakeLock() // 先释放之前的锁
+        
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "AlarmVibrator:VibrationWakeLock"
+        ).apply {
+            acquire(3 * 60 * 1000L) // 最多持有3分钟
+        }
+        Log.d(TAG, "获取唤醒锁")
+    }
+    
+    // 释放唤醒锁
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) {
+                it.release()
+                Log.d(TAG, "释放唤醒锁")
+            }
+        }
+        wakeLock = null
+    }
+    
     // 通过振动通知用户到下一次闹铃的时间
     @RequiresApi(Build.VERSION_CODES.S)
     private fun notifyTimeToNextAlarm() {
+        // 获取唤醒锁，确保振动序列不会因为系统休眠而中断
+        acquireWakeLock()
+        
         // 获取下一次闹铃时间
         val alarmInfo = alarmInfoManager.getNextAlarmTime()
         
         // 如果没有设置闹铃，则振动一次表示无闹铃
         if (alarmInfo == "没有设置闹铃" || alarmInfo.startsWith("获取闹铃信息失败") || alarmInfo == "需要闹铃权限") {
             vibrationManager.vibrateLight()
+            releaseWakeLock()
             return
         }
         
@@ -160,6 +194,7 @@ class ScreenStateReceiver(private val context: Context) {
             if (diffMs <= 0) {
                 // 闹铃时间已过，振动一次表示无效
                 vibrationManager.vibrateStrong()
+                releaseWakeLock()
                 return
             }
             
@@ -178,6 +213,7 @@ class ScreenStateReceiver(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "解析闹铃时间失败: ${e.message}")
             vibrationManager.vibrateStrong() // 出错时振动一次
+            releaseWakeLock()
         }
     }
     
@@ -189,7 +225,10 @@ class ScreenStateReceiver(private val context: Context) {
             // 小时振动完成后，执行15分钟振动
             executeFifteenMinVibrations(fifteenMinBlocks) {
                 // 15分钟振动完成后，执行1分钟振动
-                executeOneMinVibrations(oneMinBlocks)
+                executeOneMinVibrations(oneMinBlocks) {
+                    // 所有振动完成后释放唤醒锁
+                    releaseWakeLock()
+                }
             }
         }
     }
@@ -218,7 +257,7 @@ class ScreenStateReceiver(private val context: Context) {
                     // 完成所有小时振动后，等待一段时间再开始下一阶段
                     Handler(Looper.getMainLooper()).postDelayed({
                         onComplete()
-                    }, 1500)
+                    }, 1000)
                 }
             }
         }
@@ -262,8 +301,9 @@ class ScreenStateReceiver(private val context: Context) {
     
     // 执行1分钟振动
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun executeOneMinVibrations(count: Int) {
+    private fun executeOneMinVibrations(count: Int, onComplete: () -> Unit) {
         if (count <= 0) {
+            onComplete()
             return
         }
         
@@ -276,6 +316,8 @@ class ScreenStateReceiver(private val context: Context) {
                     vibrationManager.vibrateLight()
                     currentCount++
                     Handler(Looper.getMainLooper()).postDelayed(this, delayBetween)
+                } else {
+                    onComplete()
                 }
             }
         }
