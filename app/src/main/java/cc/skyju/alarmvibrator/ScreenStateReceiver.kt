@@ -245,7 +245,7 @@ class ScreenStateReceiver(private val context: Context) {
         }
         
         var currentCount = 0
-        val delayBetween = 500L // 每次振动之间的延迟
+        val delayBetween = 1000L // 每次振动之间的延迟
         
         val runnable = object : Runnable {
             override fun run() {
